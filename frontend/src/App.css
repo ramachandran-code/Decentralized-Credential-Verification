@@ -1,0 +1,112 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #f4f7fb;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 30px;
+}
+
+.card {
+  width: 100%;
+  max-width: 650px;
+  background: white;
+  padding: 50px;
+  border-radius: 20px;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+}
+
+.logo {
+  font-size: 60px;
+  margin-bottom: 15px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 32px;
+  color: #1f2937;
+}
+
+.subtitle {
+  color: #6b7280;
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 15px 0 30px;
+}
+
+.connect-button {
+  width: 100%;
+  padding: 15px;
+  border: none;
+  border-radius: 10px;
+  background: #111827;
+  color: white;
+  font-size: 17px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.connect-button:hover {
+  opacity: 0.9;
+}
+
+.wallet-section {
+  margin-top: 20px;
+}
+
+.success {
+  padding: 12px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  background: #ecfdf5;
+  color: #047857;
+  font-weight: bold;
+}
+
+.info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 15px;
+  margin-bottom: 10px;
+  background: #f9fafb;
+  border-radius: 10px;
+  text-align: left;
+}
+
+.info span {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.info strong {
+  color: #111827;
+  word-break: break-all;
+}
+
+.disconnect-button {
+  margin-top: 15px;
+  padding: 12px 20px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+}
+
+.error {
+  margin-top: 20px;
+  padding: 12px;
+  background: #fef2f2;
+  color: #b91c1c;
+  border-radius: 8px;
+}

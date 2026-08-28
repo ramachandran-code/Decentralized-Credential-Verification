@@ -1,0 +1,57 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_28-0709689b02ed47da8860759074c072f61aa7f5c6",
+  "solcVersion": "0.8.28",
+  "solcLongVersion": "0.8.28+commit.7893614a",
+  "compilerType": "solc",
+  "toolVersions": {
+    "hardhat": "3.12.0"
+  },
+  "userSourceNameMap": {
+    "contracts/CredentialVerification.sol": "project/contracts/CredentialVerification.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "cancun",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode.linkReferences",
+            "evm.bytecode.object",
+            "evm.bytecode.opcodes",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.immutableReferences",
+            "evm.deployedBytecode.linkReferences",
+            "evm.deployedBytecode.object",
+            "evm.deployedBytecode.opcodes",
+            "evm.deployedBytecode.sourceMap",
+            "evm.methodIdentifiers"
+          ]
+        }
+      },
+      "remappings": [
+        "project/:@openzeppelin/contracts/=npm/@openzeppelin/contracts@5.6.1/"
+      ]
+    },
+    "sources": {
+      "npm/@openzeppelin/contracts@5.6.1/access/Ownable.sol": {
+        "content": "// SPDX-License-Identifier: MIT\n// OpenZeppelin Contracts (last updated v5.0.0) (access/Ownable.sol)\n\npragma solidity ^0.8.20;\n\nimport {Context} from \"../utils/Context.sol\";\n\n/**\n * @dev Contract module which provides a basic access control mechanism, where\n * there is an account (an owner) that can be granted exclusive access to\n * specific functions.\n *\n * The initial owner is set to the address provided by the deployer. This can\n * later be changed with {transferOwnership}.\n *\n * This module is used through inheritance. It will make available the modifier\n * `onlyOwner`, which can be applied to your functions to restrict their use to\n * the owner.\n */\nabstract contract Ownable is Context {\n    address private _owner;\n\n    /**\n     * @dev The caller account is not authorized to perform an operation.\n     */\n    error OwnableUnauthorizedAccount(address account);\n\n    /**\n     * @dev The owner is not a valid owner account. (eg. `address(0)`)\n     */\n    error OwnableInvalidOwner(address owner);\n\n    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);\n\n    /**\n     * @dev Initializes the contract setting the address provided by the deployer as the initial owner.\n     */\n    constructor(address initialOwner) {\n        if (initialOwner == address(0)) {\n            revert OwnableInvalidOwner(address(0));\n        }\n        _transferOwnership(initialOwner);\n    }\n\n    /**\n     * @dev Throws if called by any account other than the owner.\n     */\n    modifier onlyOwner() {\n        _checkOwner();\n        _;\n    }\n\n    /**\n     * @dev Returns the address of the current owner.\n     */\n    function owner() public view virtual returns (address) {\n        return _owner;\n    }\n\n    /**\n     * @dev Throws if the sender is not the owner.\n     */\n    function _checkOwner() internal view virtual {\n        if (owner() != _msgSender()) {\n            revert OwnableUnauthorizedAccount(_msgSender());\n        }\n    }\n\n    /**\n     * @dev Leaves the contract without owner. It will not be possible to call\n     * `onlyOwner` functions. Can only be called by the current owner.\n     *\n     * NOTE: Renouncing ownership will leave the contract without an owner,\n     * thereby disabling any functionality that is only available to the owner.\n     */\n    function renounceOwnership() public virtual onlyOwner {\n        _transferOwnership(address(0));\n    }\n\n    /**\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\n     * Can only be called by the current owner.\n     */\n    function transferOwnership(address newOwner) public virtual onlyOwner {\n        if (newOwner == address(0)) {\n            revert OwnableInvalidOwner(address(0));\n        }\n        _transferOwnership(newOwner);\n    }\n\n    /**\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\n     * Internal function without access restriction.\n     */\n    function _transferOwnership(address newOwner) internal virtual {\n        address oldOwner = _owner;\n        _owner = newOwner;\n        emit OwnershipTransferred(oldOwner, newOwner);\n    }\n}\n"
+      },
+      "npm/@openzeppelin/contracts@5.6.1/utils/Context.sol": {
+        "content": "// SPDX-License-Identifier: MIT\n// OpenZeppelin Contracts (last updated v5.0.1) (utils/Context.sol)\n\npragma solidity ^0.8.20;\n\n/**\n * @dev Provides information about the current execution context, including the\n * sender of the transaction and its data. While these are generally available\n * via msg.sender and msg.data, they should not be accessed in such a direct\n * manner, since when dealing with meta-transactions the account sending and\n * paying for execution may not be the actual sender (as far as an application\n * is concerned).\n *\n * This contract is only required for intermediate, library-like contracts.\n */\nabstract contract Context {\n    function _msgSender() internal view virtual returns (address) {\n        return msg.sender;\n    }\n\n    function _msgData() internal view virtual returns (bytes calldata) {\n        return msg.data;\n    }\n\n    function _contextSuffixLength() internal view virtual returns (uint256) {\n        return 0;\n    }\n}\n"
+      },
+      "project/contracts/CredentialVerification.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.28;\n\nimport \"@openzeppelin/contracts/access/Ownable.sol\";\n\ncontract CredentialVerification is Ownable {\n\n    struct Credential {\n        string credentialId;\n        string studentName;\n        string rollNumber;\n        string studentIdentifier;\n        string certificateHash;\n        address university;\n        uint256 issueDate;\n        bool revoked;\n        bool exists;\n    }\n\n    mapping(address => bool) public authorizedUniversities;\n\n    mapping(string => Credential) private credentials;\n\n    event UniversityAuthorized(\n        address indexed university\n    );\n\n    event UniversityRevoked(\n        address indexed university\n    );\n\n    event CredentialIssued(\n        string indexed credentialId,\n        address indexed university,\n        string studentName\n    );\n\n    event CredentialRevoked(\n        string indexed credentialId\n    );\n\n    constructor() Ownable(msg.sender) {}\n\n    modifier onlyAuthorizedUniversity() {\n        require(\n            authorizedUniversities[msg.sender],\n            \"Not an authorized university\"\n        );\n        _;\n    }\n\n    function authorizeUniversity(\n        address university\n    ) external onlyOwner {\n\n        require(\n            university != address(0),\n            \"Invalid university address\"\n        );\n\n        authorizedUniversities[university] = true;\n\n        emit UniversityAuthorized(university);\n    }\n\n    function revokeUniversity(\n        address university\n    ) external onlyOwner {\n\n        authorizedUniversities[university] = false;\n\n        emit UniversityRevoked(university);\n    }\n\n    function issueCredential(\n        string memory credentialId,\n        string memory studentName,\n        string memory rollNumber,\n        string memory studentIdentifier,\n        string memory certificateHash\n    ) external onlyAuthorizedUniversity {\n\n        require(\n            bytes(credentialId).length > 0,\n            \"Credential ID required\"\n        );\n\n        require(\n            !credentials[credentialId].exists,\n            \"Credential already exists\"\n        );\n\n        credentials[credentialId] = Credential({\n            credentialId: credentialId,\n            studentName: studentName,\n            rollNumber: rollNumber,\n            studentIdentifier: studentIdentifier,\n            certificateHash: certificateHash,\n            university: msg.sender,\n            issueDate: block.timestamp,\n            revoked: false,\n            exists: true\n        });\n\n        emit CredentialIssued(\n            credentialId,\n            msg.sender,\n            studentName\n        );\n    }\n\n    function getCredential(\n        string memory credentialId\n    )\n        external\n        view\n        returns (Credential memory)\n    {\n        require(\n            credentials[credentialId].exists,\n            \"Credential not found\"\n        );\n\n        return credentials[credentialId];\n    }\n\n    function verifyCredential(\n        string memory credentialId,\n        string memory certificateHash\n    )\n        external\n        view\n        returns (bool)\n    {\n        if (!credentials[credentialId].exists) {\n            return false;\n        }\n\n        if (credentials[credentialId].revoked) {\n            return false;\n        }\n\n        return keccak256(\n            bytes(credentials[credentialId].certificateHash)\n        ) == keccak256(\n            bytes(certificateHash)\n        );\n    }\n\n    function revokeCredential(\n        string memory credentialId\n    ) external {\n\n        require(\n            credentials[credentialId].exists,\n            \"Credential not found\"\n        );\n\n        require(\n            msg.sender == credentials[credentialId].university ||\n            msg.sender == owner(),\n            \"Not authorized\"\n        );\n\n        credentials[credentialId].revoked = true;\n\n        emit CredentialRevoked(credentialId);\n    }\n\n    function isCredentialRevoked(\n        string memory credentialId\n    ) external view returns (bool) {\n\n        require(\n            credentials[credentialId].exists,\n            \"Credential not found\"\n        );\n\n        return credentials[credentialId].revoked;\n    }\n}"
+      }
+    }
+  }
+}
