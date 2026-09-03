@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { ethers } from "ethers";
+import { uploadToIPFS } from "./utils/ipfs";
 import {
   getContract,
   getReadOnlyContract,
+  CONTRACT_ADDRESS,
 } from "./utils/contract";
 import "./App.css";
 
@@ -35,20 +37,15 @@ function App() {
   // UNIVERSITY / CREDENTIAL STATE
   // ==================================================
 
-  const [credentialId, setCredentialId] =
-    useState("");
-
-  const [studentName, setStudentName] =
-    useState("");
-
-  const [rollNumber, setRollNumber] =
-    useState("");
-
-  const [studentIdentifier, setStudentIdentifier] =
-    useState("");
-
-  const [certificateHash, setCertificateHash] =
-    useState("");
+  const [credentialId, setCredentialId] = useState("");
+  const [studentName, setStudentName] = useState("");
+  const [rollNumber, setRollNumber] = useState("");
+  const [studentIdentifier, setStudentIdentifier] = useState("");
+  const [certificateHash, setCertificateHash] = useState("");
+  const [ipfsCid, setIpfsCid] = useState("");
+  const [ipfsUrl, setIpfsUrl] = useState("");
+  const [selectedCertificate, setSelectedCertificate] = useState(null);
+  const [uploadingToIPFS, setUploadingToIPFS] = useState(false);
 
   // ==================================================
   // VERIFIER STATE
@@ -103,7 +100,6 @@ function App() {
         network.chainId.toString();
 
       setAccount(address);
-
       setChainId(currentChainId);
 
       setBalance(
@@ -255,6 +251,10 @@ function App() {
     setRollNumber("");
     setStudentIdentifier("");
     setCertificateHash("");
+    setIpfsCid("");
+    setIpfsUrl("");
+    setSelectedCertificate(null);
+    setUploadingToIPFS(false);
 
     // Verifier
     setVerifyCredentialId("");
@@ -273,70 +273,117 @@ function App() {
   // ==================================================
 
   async function authorizeUniversity() {
-    try {
-      setError("");
-      setStatus("");
-      setAuthorizationStatus("");
+  try {
+    setError("");
+    setStatus("");
+    setAuthorizationStatus("");
 
-      // Validate address
-      if (
-        !universityAddress.trim()
-      ) {
-        setError(
-          "University wallet address is required."
-        );
+    // ----------------------------------------
+    // Get and clean address
+    // ----------------------------------------
 
-        return;
-      }
+    const rawAddress = universityAddress.trim();
 
-      if (
-        !ethers.isAddress(
-          universityAddress.trim()
-        )
-      ) {
-        setError(
-          "Invalid university wallet address."
-        );
+    if (!rawAddress) {
+      setError("University wallet address is required.");
+      return;
+    }
 
-        return;
-      }
+    // ----------------------------------------
+    // Validate Ethereum address
+    // ----------------------------------------
 
-      // Make sure current wallet is Admin
-      if (
-        account.toLowerCase() !==
+    if (!ethers.isAddress(rawAddress)) {
+      setError(
+        "Invalid university wallet address. Please enter the complete 42-character Ethereum address."
+      );
+      return;
+    }
+
+    // Convert to proper checksum address
+    const university = ethers.getAddress(rawAddress);
+
+    // ----------------------------------------
+    // Check Admin account
+    // ----------------------------------------
+
+    if (
+      !account ||
+      account.toLowerCase() !==
         ADMIN_ADDRESS.toLowerCase()
-      ) {
-        setError(
-          "Only the Admin account can authorize universities."
-        );
+    ) {
+      setError(
+        "Only the Admin account can authorize universities."
+      );
+      return;
+    }
 
-        return;
-      }
+    // ----------------------------------------
+    // Get contract
+    // ----------------------------------------
 
-      const contract =
-        await getContract();
+    const contract = await getContract();
 
-      setStatus(
-        "Waiting for MetaMask confirmation..."
+    console.log(
+      "Contract:",
+      CONTRACT_ADDRESS
+    );
+
+    console.log(
+      "University address:",
+      university
+    );
+
+    // ----------------------------------------
+    // Check current authorization
+    // ----------------------------------------
+
+    const alreadyAuthorized =
+      await contract.authorizedUniversities(
+        university
       );
 
-      const transaction =
-        await contract.authorizeUniversity(
-          universityAddress.trim()
-        );
+    if (alreadyAuthorized) {
+      setAuthorizationStatus(
+        "✅ University is already authorized."
+      );
+      return;
+    }
 
-      setStatus(
-        "Authorization transaction submitted. Waiting for confirmation..."
+    // ----------------------------------------
+    // Send transaction
+    // ----------------------------------------
+
+    setStatus(
+      "Waiting for MetaMask confirmation..."
+    );
+
+    const transaction =
+      await contract.authorizeUniversity(
+        university
       );
 
-      const receipt =
-        await transaction.wait();
+    console.log(
+      "Transaction:",
+      transaction.hash
+    );
 
-      console.log(
-        "University authorization transaction:",
-        receipt
+    setStatus(
+      "Authorization transaction submitted. Waiting for confirmation..."
+    );
+
+    await transaction.wait();
+
+    // ----------------------------------------
+    // Confirm authorization
+    // ----------------------------------------
+
+    const confirmed =
+      await contract.authorizedUniversities(
+        university
       );
 
+    if (confirmed) {
       setStatus(
         "University authorized successfully!"
       );
@@ -344,30 +391,43 @@ function App() {
       setAuthorizationStatus(
         "✅ University is authorized"
       );
+    } else {
+      setError(
+        "Transaction completed, but university authorization could not be confirmed."
+      );
+    }
 
-    } catch (err) {
-      console.error(err);
+  } catch (err) {
+    console.error(
+      "Authorization error:",
+      err
+    );
 
-      setStatus("");
+    setStatus("");
 
-      if (
-        err?.code === 4001 ||
-        err?.code === "ACTION_REJECTED"
-      ) {
-        setError(
-          "Transaction rejected in MetaMask."
-        );
-
-      } else {
-        setError(
-          err?.reason ||
-          err?.shortMessage ||
-          err?.message ||
-          "University authorization failed."
-        );
-      }
+    if (
+      err?.code === 4001 ||
+      err?.code === "ACTION_REJECTED"
+    ) {
+      setError(
+        "Transaction rejected in MetaMask."
+      );
+    } else if (
+      err?.code === "INVALID_ARGUMENT"
+    ) {
+      setError(
+        "Invalid Ethereum address. Enter the complete 42-character wallet address."
+      );
+    } else {
+      setError(
+        err?.reason ||
+        err?.shortMessage ||
+        err?.message ||
+        "University authorization failed."
+      );
     }
   }
+}
 
   // ==================================================
   // CHECK UNIVERSITY AUTHORIZATION
@@ -446,9 +506,7 @@ function App() {
 
     const hashArray =
       Array.from(
-        new Uint8Array(
-          hashBuffer
-        )
+        new Uint8Array(hashBuffer)
       );
 
     return hashArray
@@ -460,194 +518,270 @@ function App() {
       )
       .join("");
   }
+    // ==================================================
+    // ISSUE CREDENTIAL
+    // ==================================================
 
-  // ==================================================
-  // ISSUE CREDENTIAL
-  // ==================================================
+    async function issueCredential() {
+      try {
+        setError("");
+        setStatus("");
 
-  async function issueCredential() {
-    try {
-      setError("");
-      setStatus("");
+        // ------------------------------
+        // Validate credential fields
+        // ------------------------------
 
-      // ------------------------------
-      // Validate fields
-      // ------------------------------
+        if (!credentialId.trim()) {
+          setError("Credential ID is required.");
+          return;
+        }
 
-      if (
-        !credentialId.trim()
-      ) {
-        setError(
-          "Credential ID is required."
+        if (!studentName.trim()) {
+          setError("Student name is required.");
+          return;
+        }
+
+        if (!rollNumber.trim()) {
+          setError("Roll number is required.");
+          return;
+        }
+
+        if (!studentIdentifier.trim()) {
+          setError("Student identifier is required.");
+          return;
+        }
+
+        // ------------------------------
+        // Validate certificate PDF
+        // ------------------------------
+
+        if (!selectedCertificate) {
+          setError("Please select a certificate PDF.");
+          return;
+        }
+
+        if (
+          selectedCertificate.type !==
+          "application/pdf"
+        ) {
+          setError("Please select a PDF certificate.");
+          return;
+        }
+
+        // ------------------------------
+        // Calculate SHA-256
+        // ------------------------------
+
+        setStatus(
+          "Calculating certificate SHA-256 hash..."
         );
 
-        return;
-      }
+        const calculatedCertificateHash =
+          await calculateFileHash(
+            selectedCertificate
+          );
 
-      if (
-        !studentName.trim()
-      ) {
-        setError(
-          "Student name is required."
-        );
+        const cleanHash =
+          calculatedCertificateHash
+            .toLowerCase()
+            .trim()
+            .replace(/^0x/, "");
 
-        return;
-      }
+        if (
+          !/^[a-f0-9]{64}$/.test(cleanHash)
+        ) {
+          setError(
+            "Unable to calculate a valid SHA-256 hash."
+          );
+          setStatus("");
+          return;
+        }
 
-      if (
-        !rollNumber.trim()
-      ) {
-        setError(
-          "Roll number is required."
-        );
+        setCertificateHash(cleanHash);
 
-        return;
-      }
-
-      if (
-        !studentIdentifier.trim()
-      ) {
-        setError(
-          "Student identifier is required."
-        );
-
-        return;
-      }
-
-      if (
-        !certificateHash.trim()
-      ) {
-        setError(
-          "Certificate hash is required."
-        );
-
-        return;
-      }
-
-      // ------------------------------
-      // Validate SHA-256
-      // ------------------------------
-
-      const cleanHash =
-        certificateHash
-          .trim()
-          .toLowerCase();
-
-      if (
-        !/^[a-f0-9]{64}$/.test(
+        console.log(
+          "Certificate SHA-256:",
           cleanHash
-        )
-      ) {
-        setError(
-          "Certificate hash must be exactly 64 hexadecimal characters."
         );
 
-        return;
-      }
+        // ------------------------------
+        // Upload certificate to IPFS
+        // ------------------------------
 
-      // ------------------------------
-      // Get contract
-      // ------------------------------
+        setUploadingToIPFS(true);
 
-      const contract =
-        await getContract();
+        setStatus(
+          "Uploading certificate to IPFS..."
+        );
 
-      // ------------------------------
-      // Verify connected account
-      // ------------------------------
+        const ipfsResult =
+          await uploadToIPFS(
+            selectedCertificate
+          );
 
-      const currentAccount =
-        await contract.runner.getAddress();
+        setUploadingToIPFS(false);
 
-      const authorized =
-        await contract.authorizedUniversities(
+        const cid =
+          ipfsResult.cid;
+
+        const url =
+          ipfsResult.ipfsUrl;
+
+        if (!cid) {
+          setError(
+            "IPFS upload completed but no CID was returned."
+          );
+          setStatus("");
+          return;
+        }
+
+        setIpfsCid(cid);
+        setIpfsUrl(url);
+
+        console.log(
+          "IPFS CID:",
+          cid
+        );
+
+        console.log(
+          "IPFS URL:",
+          url
+        );
+
+        // ------------------------------
+        // Get blockchain contract
+        // ------------------------------
+
+        setStatus(
+          "Connecting to blockchain..."
+        );
+
+        const contract =
+          await getContract();
+
+        // ------------------------------
+        // Verify connected account
+        // ------------------------------
+
+        const currentAccount =
+          await contract.runner.getAddress();
+
+        console.log(
+          "Connected university:",
           currentAccount
         );
 
-      if (!authorized) {
-        setError(
-          "Connected wallet is not an authorized university."
+        const authorized =
+          await contract.authorizedUniversities(
+            currentAccount
+          );
+
+        if (!authorized) {
+          setError(
+            "Connected wallet is not an authorized university."
+          );
+
+          setStatus("");
+          return;
+        }
+
+        // ------------------------------
+        // Issue credential
+        // ------------------------------
+
+        setStatus(
+          "Waiting for MetaMask confirmation..."
         );
 
-        return;
-      }
+        const transaction =
+          await contract.issueCredential(
+            credentialId.trim(),
+            studentName.trim(),
+            rollNumber.trim(),
+            studentIdentifier.trim(),
+            cleanHash,
+            cid
+          );
 
-      // ------------------------------
-      // Issue credential
-      // ------------------------------
-
-      setStatus(
-        "Waiting for MetaMask confirmation..."
-      );
-
-      const transaction =
-        await contract.issueCredential(
-          credentialId.trim(),
-          studentName.trim(),
-          rollNumber.trim(),
-          studentIdentifier.trim(),
-          cleanHash
+        setStatus(
+          "Transaction submitted. Waiting for blockchain confirmation..."
         );
 
-      setStatus(
-        "Transaction submitted. Waiting for blockchain confirmation..."
-      );
+        const receipt =
+          await transaction.wait();
 
-      const receipt =
-        await transaction.wait();
-
-      console.log(
-        "Credential transaction:",
-        receipt
-      );
-
-      console.log(
-        "Transaction hash:",
-        receipt.hash
-      );
-
-      setStatus(
-        `Credential issued successfully! Transaction: ${receipt.hash}`
-      );
-
-      // Clear fields
-      setCredentialId("");
-      setStudentName("");
-      setRollNumber("");
-      setStudentIdentifier("");
-      setCertificateHash("");
-
-    } catch (err) {
-      console.error(err);
-
-      setStatus("");
-
-      if (
-        err?.code === 4001 ||
-        err?.code === "ACTION_REJECTED"
-      ) {
-        setError(
-          "Transaction rejected in MetaMask."
+        console.log(
+          "Credential transaction:",
+          receipt
         );
 
-      } else if (
-        err?.reason ===
-        "Credential already exists"
-      ) {
-        setError(
-          "Credential already exists on the blockchain."
+        console.log(
+          "Transaction hash:",
+          receipt.hash
         );
 
-      } else {
-        setError(
-          err?.reason ||
-          err?.shortMessage ||
-          err?.message ||
-          "Credential issuance failed."
+        // ------------------------------
+        // Success
+        // ------------------------------
+
+        setStatus(
+          `Credential issued successfully! Transaction: ${receipt.hash}`
         );
+
+        // ------------------------------
+        // Clear credential input fields
+        // ------------------------------
+
+        setCredentialId("");
+        setStudentName("");
+        setRollNumber("");
+        setStudentIdentifier("");
+        setCertificateHash("");
+
+        setIpfsCid("");
+        setIpfsUrl("");
+        setSelectedCertificate(null);
+
+      } catch (err) {
+        console.error(
+          "Credential issuance error:",
+          err
+        );
+
+        setUploadingToIPFS(false);
+        setStatus("");
+
+        if (
+          err?.code === 4001 ||
+          err?.code === "ACTION_REJECTED"
+        ) {
+          setError(
+            "Transaction rejected in MetaMask."
+          );
+        } else if (
+          err?.reason ===
+          "Credential already exists"
+        ) {
+          setError(
+            "Credential already exists on the blockchain."
+          );
+        } else if (
+          err?.reason ===
+          "IPFS CID required"
+        ) {
+          setError(
+            "IPFS CID is missing. Please upload the certificate again."
+          );
+        } else {
+          setError(
+            err?.reason ||
+            err?.shortMessage ||
+            err?.message ||
+            "Credential issuance failed."
+          );
+        }
       }
     }
-  }
 
   // ==================================================
   // VERIFY UPLOADED CERTIFICATE
@@ -782,6 +916,26 @@ function App() {
       );
 
       // ------------------------------
+      // Check whether credential exists
+      // ------------------------------
+
+      if (
+        credential.exists === false
+      ) {
+        setVerificationResult(
+          "INVALID"
+        );
+
+        setError(
+          "Credential does not exist on the blockchain."
+        );
+
+        setStatus("");
+
+        return;
+      }
+
+      // ------------------------------
       // Check revocation
       // ------------------------------
 
@@ -798,18 +952,24 @@ function App() {
       }
 
       // ------------------------------
-      // Compare hashes
+      // Normalize hashes
       // ------------------------------
 
       const storedHash =
-        credential.certificateHash
+        String(credential.certificateHash || "")
           .toLowerCase()
-          .trim();
+          .trim()
+          .replace(/^0x/, "");
 
       const uploadedHash =
-        hash
+        String(hash || "")
           .toLowerCase()
-          .trim();
+          .trim()
+          .replace(/^0x/, "");
+
+      console.log(
+        "================================="
+      );
 
       console.log(
         "Stored blockchain hash:",
@@ -817,19 +977,60 @@ function App() {
       );
 
       console.log(
-        "Uploaded PDF hash:",
+        "Uploaded PDF SHA-256 hash:",
         uploadedHash
+      );
+
+      console.log(
+        "Hashes match:",
+        storedHash === uploadedHash
+      );
+
+      console.log(
+        "================================="
       );
 
       // ------------------------------
       // Verify through smart contract
       // ------------------------------
 
+      // Solidity expects certificateHash
+      // as a STRING, not bytes32.
+
       const valid =
         await contract.verifyCredential(
           verifyCredentialId.trim(),
           uploadedHash
+      );
+
+      // ------------------------------
+      // Final verification
+      // ------------------------------
+
+      if (
+        valid &&
+        storedHash === uploadedHash
+      ) {
+        setVerificationResult("VALID");
+
+        setError("");
+
+        setStatus(
+          "Certificate verified successfully."
         );
+      } else {
+        setVerificationResult("INVALID");
+
+        setError(
+          "Certificate hash does not match the hash stored on the blockchain."
+        );
+
+        setStatus("");
+      }
+
+      // ------------------------------
+      // Final verification
+      // ------------------------------
 
       if (
         valid &&
@@ -862,7 +1063,6 @@ function App() {
         setError(
           "Credential not found on blockchain."
         );
-
       } else if (
         err?.shortMessage ===
         "missing revert data"
@@ -870,7 +1070,6 @@ function App() {
         setError(
           "Unable to read the credential from the connected blockchain."
         );
-
       } else {
         setError(
           err?.reason ||
@@ -899,7 +1098,6 @@ function App() {
         accounts.length === 0
       ) {
         disconnectWallet();
-
       } else {
         loadWallet(
           accounts[0]
@@ -940,7 +1138,6 @@ function App() {
 
   return (
     <div className="app">
-
       <div className="card">
 
         {/* ==========================================
@@ -965,7 +1162,6 @@ function App() {
         ========================================== */}
 
         {!account ? (
-
           <button
             className="connect-button"
             onClick={
@@ -974,10 +1170,9 @@ function App() {
           >
             🦊 Connect MetaMask
           </button>
-
         ) : (
-
           <>
+
             {/* ========================================
                 WALLET INFORMATION
             ======================================== */}
@@ -1033,7 +1228,6 @@ function App() {
             ======================================== */}
 
             {role === "ADMIN" && (
-
               <div className="dashboard">
 
                 <h2>
@@ -1083,19 +1277,15 @@ function App() {
                   </button>
 
                   {authorizationStatus && (
-
                     <div className="status-box">
                       {
                         authorizationStatus
                       }
                     </div>
-
                   )}
 
                 </div>
-
               </div>
-
             )}
 
             {/* ========================================
@@ -1103,7 +1293,6 @@ function App() {
             ======================================== */}
 
             {role === "UNIVERSITY" && (
-
               <div className="dashboard">
 
                 <h2>
@@ -1123,9 +1312,7 @@ function App() {
                   <input
                     type="text"
                     placeholder="Credential ID"
-                    value={
-                      credentialId
-                    }
+                    value={credentialId}
                     onChange={(e) =>
                       setCredentialId(
                         e.target.value
@@ -1136,9 +1323,7 @@ function App() {
                   <input
                     type="text"
                     placeholder="Student Name"
-                    value={
-                      studentName
-                    }
+                    value={studentName}
                     onChange={(e) =>
                       setStudentName(
                         e.target.value
@@ -1149,9 +1334,7 @@ function App() {
                   <input
                     type="text"
                     placeholder="Roll Number"
-                    value={
-                      rollNumber
-                    }
+                    value={rollNumber}
                     onChange={(e) =>
                       setRollNumber(
                         e.target.value
@@ -1162,9 +1345,7 @@ function App() {
                   <input
                     type="text"
                     placeholder="Student Identifier"
-                    value={
-                      studentIdentifier
-                    }
+                    value={studentIdentifier}
                     onChange={(e) =>
                       setStudentIdentifier(
                         e.target.value
@@ -1172,12 +1353,42 @@ function App() {
                     }
                   />
 
+                  {/* Certificate PDF */}
+
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={(e) => {
+                      const file =
+                        e.target.files?.[0] || null;
+
+                      setSelectedCertificate(
+                        file
+                      );
+
+                      setSelectedFile(
+                        file
+                      );
+
+                      setCalculatedHash("");
+
+                      setError("");
+
+                      setStatus("");
+                    }}
+                  />
+
+                  {selectedCertificate && (
+                    <div className="status-box">
+                      📄 Selected Certificate:{" "}
+                      {selectedCertificate.name}
+                    </div>
+                  )}
+
                   <input
                     type="text"
                     placeholder="Certificate SHA-256 Hash"
-                    value={
-                      certificateHash
-                    }
+                    value={certificateHash}
                     onChange={(e) =>
                       setCertificateHash(
                         e.target.value
@@ -1195,9 +1406,7 @@ function App() {
                   </button>
 
                 </div>
-
               </div>
-
             )}
 
             {/* ========================================
@@ -1205,7 +1414,6 @@ function App() {
             ======================================== */}
 
             {role === "VERIFIER" && (
-
               <div className="dashboard">
 
                 <h2>
@@ -1245,7 +1453,6 @@ function App() {
                     type="file"
                     accept="application/pdf"
                     onChange={(e) => {
-
                       const file =
                         e.target.files?.[0];
 
@@ -1267,14 +1474,12 @@ function App() {
 
                       setError("");
                       setStatus("");
-
                     }}
                   />
 
-                  {/* Selected file */}
+                  {/* Selected File */}
 
                   {selectedFile && (
-
                     <p>
                       Selected:
                       {" "}
@@ -1284,10 +1489,9 @@ function App() {
                         }
                       </strong>
                     </p>
-
                   )}
 
-                  {/* Verify button */}
+                  {/* Verify Button */}
 
                   <button
                     className="action-button"
@@ -1298,12 +1502,10 @@ function App() {
                     Verify Certificate
                   </button>
 
-                  {/* Calculated hash */}
+                  {/* Calculated Hash */}
 
                   {calculatedHash && (
-
                     <div className="info">
-
                       <span>
                         Calculated SHA-256
                       </span>
@@ -1313,54 +1515,39 @@ function App() {
                           calculatedHash
                         }
                       </strong>
-
                     </div>
-
                   )}
 
                   {/* VALID */}
 
                   {verificationResult ===
                     "VALID" && (
-
                     <div className="success">
-
                       ✅ CERTIFICATE VALID
-
                     </div>
-
                   )}
 
                   {/* INVALID */}
 
                   {verificationResult ===
                     "INVALID" && (
-
                     <div className="error">
-
                       ❌ CERTIFICATE INVALID
-
                     </div>
-
                   )}
 
                   {/* REVOKED */}
 
                   {verificationResult ===
                     "REVOKED" && (
-
                     <div className="error">
-
                       ⚠️ CERTIFICATE REVOKED
-
                     </div>
-
                   )}
 
-                  {/* Blockchain details */}
+                  {/* Blockchain Details */}
 
                   {verifiedCredential && (
-
                     <div className="credential-details">
 
                       <h3>
@@ -1458,13 +1645,10 @@ function App() {
                       </p>
 
                     </div>
-
                   )}
 
                 </div>
-
               </div>
-
             )}
 
             {/* ========================================
@@ -1472,11 +1656,9 @@ function App() {
             ======================================== */}
 
             {status && (
-
               <div className="status-box">
                 {status}
               </div>
-
             )}
 
             {/* ========================================
@@ -1484,11 +1666,9 @@ function App() {
             ======================================== */}
 
             {error && (
-
               <div className="error">
                 {error}
               </div>
-
             )}
 
             {/* ========================================
@@ -1505,11 +1685,9 @@ function App() {
             </button>
 
           </>
-
         )}
 
       </div>
-
     </div>
   );
 }

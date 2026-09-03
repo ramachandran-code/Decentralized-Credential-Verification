@@ -10,7 +10,13 @@ contract CredentialVerification is Ownable {
         string studentName;
         string rollNumber;
         string studentIdentifier;
+
+        // SHA-256 hash of the original certificate PDF
         string certificateHash;
+
+        // IPFS CID of the uploaded certificate PDF
+        string ipfsCid;
+
         address university;
         uint256 issueDate;
         bool revoked;
@@ -32,7 +38,9 @@ contract CredentialVerification is Ownable {
     event CredentialIssued(
         string indexed credentialId,
         address indexed university,
-        string studentName
+        string studentName,
+        string certificateHash,
+        string ipfsCid
     );
 
     event CredentialRevoked(
@@ -49,6 +57,10 @@ contract CredentialVerification is Ownable {
         _;
     }
 
+    // ==================================================
+    // ADMIN: AUTHORIZE UNIVERSITY
+    // ==================================================
+
     function authorizeUniversity(
         address university
     ) external onlyOwner {
@@ -63,26 +75,63 @@ contract CredentialVerification is Ownable {
         emit UniversityAuthorized(university);
     }
 
+    // ==================================================
+    // ADMIN: REVOKE UNIVERSITY
+    // ==================================================
+
     function revokeUniversity(
         address university
     ) external onlyOwner {
+
+        require(
+            university != address(0),
+            "Invalid university address"
+        );
 
         authorizedUniversities[university] = false;
 
         emit UniversityRevoked(university);
     }
 
+    // ==================================================
+    // UNIVERSITY: ISSUE CREDENTIAL
+    // ==================================================
+
     function issueCredential(
         string memory credentialId,
         string memory studentName,
         string memory rollNumber,
         string memory studentIdentifier,
-        string memory certificateHash
-    ) external onlyAuthorizedUniversity {
+        string memory certificateHash,
+        string memory ipfsCid
+    )
+        external
+        onlyAuthorizedUniversity
+    {
 
         require(
             bytes(credentialId).length > 0,
             "Credential ID required"
+        );
+
+        require(
+            bytes(studentName).length > 0,
+            "Student name required"
+        );
+
+        require(
+            bytes(rollNumber).length > 0,
+            "Roll number required"
+        );
+
+        require(
+            bytes(studentIdentifier).length > 0,
+            "Student identifier required"
+        );
+
+        require(
+            bytes(certificateHash).length > 0,
+            "Certificate hash required"
         );
 
         require(
@@ -96,6 +145,7 @@ contract CredentialVerification is Ownable {
             rollNumber: rollNumber,
             studentIdentifier: studentIdentifier,
             certificateHash: certificateHash,
+            ipfsCid: ipfsCid,
             university: msg.sender,
             issueDate: block.timestamp,
             revoked: false,
@@ -105,9 +155,15 @@ contract CredentialVerification is Ownable {
         emit CredentialIssued(
             credentialId,
             msg.sender,
-            studentName
+            studentName,
+            certificateHash,
+            ipfsCid
         );
     }
+
+    // ==================================================
+    // GET CREDENTIAL
+    // ==================================================
 
     function getCredential(
         string memory credentialId
@@ -116,6 +172,7 @@ contract CredentialVerification is Ownable {
         view
         returns (Credential memory)
     {
+
         require(
             credentials[credentialId].exists,
             "Credential not found"
@@ -123,6 +180,10 @@ contract CredentialVerification is Ownable {
 
         return credentials[credentialId];
     }
+
+    // ==================================================
+    // VERIFY CREDENTIAL HASH
+    // ==================================================
 
     function verifyCredential(
         string memory credentialId,
@@ -132,24 +193,40 @@ contract CredentialVerification is Ownable {
         view
         returns (bool)
     {
-        if (!credentials[credentialId].exists) {
+
+        if (
+            !credentials[credentialId].exists
+        ) {
             return false;
         }
 
-        if (credentials[credentialId].revoked) {
+        if (
+            credentials[credentialId].revoked
+        ) {
             return false;
         }
 
         return keccak256(
-            bytes(credentials[credentialId].certificateHash)
-        ) == keccak256(
+            bytes(
+                credentials[credentialId]
+                    .certificateHash
+            )
+        )
+        ==
+        keccak256(
             bytes(certificateHash)
         );
     }
 
+    // ==================================================
+    // REVOKE CREDENTIAL
+    // ==================================================
+
     function revokeCredential(
         string memory credentialId
-    ) external {
+    )
+        external
+    {
 
         require(
             credentials[credentialId].exists,
@@ -157,25 +234,44 @@ contract CredentialVerification is Ownable {
         );
 
         require(
-            msg.sender == credentials[credentialId].university ||
+            msg.sender ==
+                credentials[credentialId]
+                    .university
+            ||
             msg.sender == owner(),
             "Not authorized"
         );
 
+        require(
+            !credentials[credentialId].revoked,
+            "Credential already revoked"
+        );
+
         credentials[credentialId].revoked = true;
 
-        emit CredentialRevoked(credentialId);
+        emit CredentialRevoked(
+            credentialId
+        );
     }
+
+    // ==================================================
+    // CHECK REVOCATION STATUS
+    // ==================================================
 
     function isCredentialRevoked(
         string memory credentialId
-    ) external view returns (bool) {
+    )
+        external
+        view
+        returns (bool)
+    {
 
         require(
             credentials[credentialId].exists,
             "Credential not found"
         );
 
-        return credentials[credentialId].revoked;
+        return credentials[credentialId]
+            .revoked;
     }
 }
