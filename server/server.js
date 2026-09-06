@@ -36,6 +36,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       { type: req.file.mimetype }
     );
 
+    formData.append("network", "public");
     formData.append(
       "file",
       blob,
