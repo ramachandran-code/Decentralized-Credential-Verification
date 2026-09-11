@@ -9,7 +9,7 @@ contract CredentialVerification is Ownable {
         string credentialId;
         string studentName;
         string rollNumber;
-        string studentIdentifier;
+        string studentEmailHash;
 
         // SHA-256 hash of the original certificate PDF
         string certificateHash;
@@ -101,7 +101,7 @@ contract CredentialVerification is Ownable {
         string memory credentialId,
         string memory studentName,
         string memory rollNumber,
-        string memory studentIdentifier,
+        string memory studentEmailHash,
         string memory certificateHash,
         string memory ipfsCid
     )
@@ -125,8 +125,8 @@ contract CredentialVerification is Ownable {
         );
 
         require(
-            bytes(studentIdentifier).length > 0,
-            "Student identifier required"
+            bytes(studentEmailHash).length > 0,
+            "Student email hash required"
         );
 
         require(
@@ -143,7 +143,7 @@ contract CredentialVerification is Ownable {
             credentialId: credentialId,
             studentName: studentName,
             rollNumber: rollNumber,
-            studentIdentifier: studentIdentifier,
+            studentEmailHash: studentEmailHash,
             certificateHash: certificateHash,
             ipfsCid: ipfsCid,
             university: msg.sender,

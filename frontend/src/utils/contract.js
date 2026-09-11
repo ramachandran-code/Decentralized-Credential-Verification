@@ -114,7 +114,7 @@ export const CONTRACT_ABI = [
       },
       {
         internalType: "string",
-        name: "studentIdentifier",
+        name: "studentEmailHash",
         type: "string",
       },
       {
@@ -167,7 +167,7 @@ export const CONTRACT_ABI = [
           },
           {
             internalType: "string",
-            name: "studentIdentifier",
+            name: "studentEmailHash",
             type: "string",
           },
           {
@@ -316,6 +316,7 @@ export async function getContract() {
 export async function getReadOnlyContract() {
   const provider =
     new ethers.JsonRpcProvider(
+      import.meta.env.VITE_RPC_URL ||
       "http://127.0.0.1:8545"
     );
 
